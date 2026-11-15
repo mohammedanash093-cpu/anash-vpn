@@ -10,18 +10,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Unzip project
-        run: unzip -q anash-vpn.zip
+        run: |
+          unzip -q anash-vpn.zip || { echo "::error::UNZIP FAILED. Files here: $(ls | tr '\n' ' ')"; exit 1; }
+          echo "::notice::Unzipped OK. Inside anash-vpn: $(ls anash-vpn | tr '\n' ' ')"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+
       - uses: android-actions/setup-android@v3
+
       - name: Build debug APK
         working-directory: anash-vpn
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace > ../build.log 2>&1 || {
+            msg=$(grep -iE "error|wrong|failed|exception|not found|could not" ../build.log | head -n 12 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error::BUILD FAILED: $msg"
+            exit 1
+          }
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
